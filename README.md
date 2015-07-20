@@ -1,2 +1,5 @@
 # spiral-spectra
-Polymer element for spectrogram visualization.
+
+- For Polymer 1.0
+
+Draws the spectrogram of `AudioBuffer`.
