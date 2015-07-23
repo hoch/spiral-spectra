@@ -297,3 +297,24 @@ FFT.prototype.rfft = function (xr, bReal, bImag) {
     this.distance >>= 1;
   }
 };
+
+
+/**
+ * FFT Utilities.
+ */
+
+// Blackman window generator.
+function generateBlackmanWindow(length) {
+  var alpha = 0.16;
+  var a0 = 0.5 * (1 - alpha);
+  var a1 = 0.5;
+  var a2 = 0.5 * alpha;
+  var twoPI = Math.PI * 2.0;
+  var blackman = new Float32Array(length);
+  for (var i = 0; i < length; i++) {
+    var x = i / length;
+    blackman[i] = a0 - a1 * Math.cos(twoPI * x) + a2 * Math.cos(twoPI * 2 * x);
+  }
+  
+  return blackman;
+}
