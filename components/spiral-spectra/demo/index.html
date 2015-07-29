@@ -1,0 +1,117 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+    <title>&lt;spiral-spectra&gt; | Spiral UI</title>
+    <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+    <link rel="import" href="../spiral-spectra.html">
+    <style>
+      body {
+        padding: 0;
+        margin: 0;
+      }
+
+      .element-info {
+        padding: 1.0em;
+        margin-bottom: 1.0em;
+        box-shadow: 2px 0 5px #607D8B;
+        color: #263238;
+        background-color: #ECEFF1;
+        font-family: sans-serif;
+      }
+
+      .element-demo {
+        padding: 1.0em;
+        font-family: sans-serif;
+      }
+
+      #eSpectrogram {
+        width: 100%;
+        height: 256px;
+      }
+
+      #dump {
+        padding-top: 1.0em;
+      }
+    </style>
+  </head>
+
+  <body class="fullbleed">
+    <div class="vertical layout fit">
+      <div class="element-info">
+
+        <!-- element description -->
+        <h1><code>&lt;spiral-spectra&gt;</code></h1>
+        <p>Draws the spectrogram of <code>AudioBuffer</code>.</p>
+
+      </div>
+      <div class="element-demo flex">
+
+        <!-- demo -->
+        <button onclick="renderAudio()">Render Audio</button>
+        <br><br>
+
+        <spiral-spectra id="eSpectrogram"></spiral-spectra>
+        <br>
+
+        <div id="eDump"></div>
+
+      </div>
+    </div>
+
+    <script>
+      var isReady = false;
+
+      var eSpectrogram, eDump;
+
+      var controller = {
+        postMessage: function (id, type, data) {
+          eDump.textContent = id + '::' + type +
+            ' (' + data.start.toFixed(3) + ', ' + data.end.toFixed(3) + ')';
+        }
+      };
+
+      function renderAudio() {
+        if (!isReady)
+          return;
+
+        var context = new OfflineAudioContext(2, 44100 * 3.0, 44100);
+
+        var osc1 = context.createOscillator();
+        var mod = context.createGain();
+        var osc2 = context.createOscillator();
+
+        osc1.type = 'sine';
+        osc2.type = 'sawtooth';
+
+        osc1.frequency.setValueAtTime(0, 0.0);
+        osc1.frequency.linearRampToValueAtTime(22050, 3.0);
+        osc2.frequency.setValueAtTime(440, 0.0);
+        osc2.frequency.exponentialRampToValueAtTime(11025, 3.0);
+        mod.gain.setValueAtTime(1, 0.0);
+        mod.gain.linearRampToValueAtTime(100, 3.0);
+
+        osc1.connect(mod);
+        mod.connect(osc2.frequency);
+        osc2.connect(context.destination);
+        osc1.start();
+        osc2.start();
+
+        context.startRendering().then(function (buffer) {
+          eSpectrogram.setController(controller);
+          eSpectrogram.setAudioBuffer(buffer);
+          eSpectrogram.setRegion(0.0, 2.5);
+        });
+      }
+
+      window.addEventListener('WebComponentsReady', function () {
+        eSpectrogram = document.querySelector('#eSpectrogram');
+        eDump = document.querySelector('#eDump');
+        isReady = true;
+      });
+    </script>
+  </body>
+
+</html>
