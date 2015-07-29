@@ -4,6 +4,7 @@ MIT License. Copyright (c) 2015 Hongchan Choi. All rights reserved.
 -->
 <link rel="import" href="../polymer/polymer.html">
 <link rel="import" href="../paper-styles/paper-styles.html">
+<link rel="import" href="../paper-button/paper-button.html">
 <link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
 
 <script src="fft.js"></script>
@@ -22,14 +23,15 @@ Example:
 
   <style>
     :host {
-      @apply(--layout);
+      position: relative;
       display: block;
       box-sizing: border-box;
-      overflow: hidden;
       background-color: var(--google-grey-100);
     }
 
     canvas {
+      width: 100%;
+      height: 100%;
       display: block;
     }
   </style>
@@ -104,27 +106,14 @@ Example:
         return;
 
       // Adjust canvas size with the parent node's inner size.
-      this._width = (this.parentNode.clientWidth || this._width);
+      this._width = this.$.canvas.width = this.$.canvas.offsetWidth;
+      this._height = this.$.canvas.height = this.$.canvas.offsetHeight;
       
       // Update the dimension of minimap drawer.
       this._spectrogramDrawer.setSize(this._width, this._height);
 
       // Trigger redraw.
       this._updateView();
-    },
-
-    _convertSecondToPixel: function (second) {
-      if (!this._audioBuffer)
-        return 0;
-
-      return (second / this._audioBuffer.duration) * this._width;
-    },
-
-    _convertPixelToSecond: function (pixel) {
-      if (!this._audioBuffer || this.width === 0)
-        return 0;
-
-      return (pixel / this._width) * this._audioBuffer.duration;
     },
 
 
@@ -155,20 +144,20 @@ Example:
 
     /** Track handlers */
 
-    _updateRegion: function (handleL, handleR) {
-      var start = this._convertPixelToSecond(handleL);
-      var end = this._convertPixelToSecond(handleR);
+    // _updateRegion: function (handleL, handleR) {
+    //   var start = this._convertPixelToSecond(handleL);
+    //   var end = this._convertPixelToSecond(handleR);
 
-      if (start < end)
-        this._spectrogramDrawer.setRegion(start, end);
-      else
-        this._spectrogramDrawer.setRegion(end, start);
+    //   if (start < end)
+    //     this._spectrogramDrawer.setRegion(start, end);
+    //   else
+    //     this._spectrogramDrawer.setRegion(end, start);
 
-      this._notify('region-change', {
-        start: start,
-        end: end
-      });
-    },
+    //   this._notify('region-change', {
+    //     start: start,
+    //     end: end
+    //   });
+    // },
 
     _onTrack: function (event) {
       if (!this._audioBuffer)
@@ -177,31 +166,31 @@ Example:
       // uiMode:
       // { CREATE_REGION, MOVE_HANDLE_L, MOVE_HANDLE_R, MOVE_REGION, IDLE }
 
-      var pos = event.detail;
+      // var pos = event.detail;
 
-      // Pure x, y coordinates should be contained inside the target element
-      // without padding or margin.
-      pos.x = event.detail.sourceEvent.offsetX;
-      pos.y = event.detail.sourceEvent.offsetY;
+      // // Pure x, y coordinates should be contained inside the target element
+      // // without padding or margin.
+      // pos.x = event.detail.sourceEvent.offsetX;
+      // pos.y = event.detail.sourceEvent.offsetY;
 
-      // Calculate current region area by pixels.
-      var needsUpdate = false;
-      var region = this._spectrogramDrawer.getRegion();
+      // // Calculate current region area by pixels.
+      // var needsUpdate = false;
+      // var region = this._spectrogramDrawer.getRegion();
 
-      switch(pos.state) {
+      // switch(pos.state) {
 
-        case 'start':
-          break;
+      //   case 'start':
+      //     break;
 
-        case 'track':
-          break;
+      //   case 'track':
+      //     break;
 
-        case 'end':
-          break;
-      }
+      //   case 'end':
+      //     break;
+      // }
 
-      if (needsUpdate)
-        this._updateRegion(handleL, handleR);
+      // if (needsUpdate)
+      //   this._updateRegion(handleL, handleR);
     },
 
 
@@ -215,8 +204,8 @@ Example:
 
     /** Polymer life cycle: created -> ready -> attached **/
 
-    created: function () {},
-    ready: function() {},
+    // created: function () {},
+    // ready: function() {},
 
     attached: function () {
       // Initialize and force-resize at startup. This is done asynchronously to
@@ -234,17 +223,6 @@ Example:
      */
     setController: function (controller) {
       this._controller = controller;
-    },
-
-    /**
-     * Sets the height of the instance. This triggers the redraw of visualization.
-     * @param {Number} height Height in pixel.
-     */
-    setHeight: function (height) {
-      this._height = height;
-
-      // Force resize.
-      this._onResize();
     },
 
     /**
@@ -284,6 +262,15 @@ Example:
         return null;
 
       return this._spectrogramDrawer.getRegion();
+    },
+
+    /**
+     * Sets the vertical scale of spectrogram.
+     * @param {String} mode The vertical scale of spectrogram: ['linear', 'log']
+     */
+    setScale: function (mode) {
+      this._spectrogramDrawer.setScale(mode);
+      this._updateView();
     }
 
   });

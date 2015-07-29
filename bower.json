@@ -1,6 +1,6 @@
 {
   "name": "spiral-spectra",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "authors": [
     "Hongchan Choi <hongchan.choi@gmail.com>"
   ],
@@ -24,7 +24,8 @@
   ],
   "dependencies": {
     "polymer": "Polymer/polymer#^1.0.6",
-    "iron-resizable-behavior": "PolymerElements/iron-resizable-behavior#^1.0.2"
+    "iron-resizable-behavior": "PolymerElements/iron-resizable-behavior#^1.0.2",
+    "paper-button": "PolymerElements/paper-button#^1.0.3"
   },
   "devDependencies": {
     "iron-component-page": "PolymerElements/iron-component-page#^1.0.5",

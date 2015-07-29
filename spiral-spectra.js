@@ -12,10 +12,10 @@
   };
 
   // Default FFT size.
-  var FFT_SIZE = 256;
+  var FFT_SIZE = 512;
 
   // Smoothing constant between successive FFT frame.
-  var SMOOTHING_CONSTANT = 0.4;
+  var SMOOTHING_CONSTANT = 0;
 
   /**
    * @class Spectra
@@ -28,11 +28,14 @@
   /** Internal methods */
 
   Spectra.prototype.initialize = function(ctx, x, y, width, height) {
-    
+
     this.ctx = ctx;
+    this.canvasOS = document.createElement('canvas');
+    this.ctxOS = this.canvasOS.getContext('2d');
+
     this.width = (width || STYLE.width);
     this.height = (height || STYLE.height);
-    
+
     // FFT configuration.
     this.fftSize = FFT_SIZE;
     this.halfBin = this.fftSize / 2;  // The bin index of nyquist freq.
@@ -49,7 +52,10 @@
 
     this.regionStart = 0.0;
     this.regionEnd = 1.0;
+    this.totalDuration = 1.0;
+    this.useLogarithmicScale = true;
 
+    this.isSpectrogramRendered = false;
     this.data = null;
     this.sampleRate = null;
   };
@@ -57,23 +63,20 @@
   Spectra.prototype.setSize = function (width, height) {
     this.width = (width || STYLE.width);
     this.height = (height || STYLE.height);
-    this.ctx.canvas.width = this.width;
-    this.ctx.canvas.height = this.height;
-    this.ctx.canvas.style.width = this.width + 'px';
-    this.ctx.canvas.style.height = this.height + 'px';
     this.draw();
   };
 
-  // TODO: use off-screen drawing for higher performance.
-  Spectra.prototype.drawSpectrogram = function () {
+  Spectra.prototype.renderSpectrogram = function () {
 
     this.numHops = Math.floor(this.data.length / this.hopSize);
 
-    var unitX = this.width / this.numHops;
-    var unitY = this.height / this.halfBin;
+    // The number of fft iteration and drop beyond the nyquist for drawing.
+    this.canvasOS.width = this.numHops;
+    this.canvasOS.height = this.halfBin;
+    var canvasData = this.ctxOS.getImageData(0, 0, this.numHops, this.halfBin);
 
     // Magnitude scaler.
-    var magScale = 1.0 / this.fftSize; 
+    var magScale = 1.0 / this.fftSize;
 
     for (var hop = 0; hop < this.numHops; hop++) {
       // Get a frame from the channel data. Note that fftFrame is a subarray and
@@ -88,27 +91,37 @@
       this.FFT.rfft(this.temp, this.reals, this.imags);
 
       // Draw the magnitude in frequency bins below Nyquist.
-      for (i = 0; i < this.halfBin; i++) {
-        
+      for (var bin = 0; bin < this.halfBin; bin++) {
+
         // Get absolute value from real and imag numbers.
-        var mag = Math.sqrt(this.reals[i] * this.reals[i] + this.imags[i] * this.imags[i]);
-        
+        var mag = Math.sqrt(this.reals[bin] * this.reals[bin] + this.imags[bin] * this.imags[bin]);
+
         // Scale and convert to dB.
         mag = 20 * Math.log(magScale * mag + 1);
-        
-        // Smoothing over time.
-        this.mags[i] = this.mags[i] * SMOOTHING_CONSTANT + mag * (1.0 - SMOOTHING_CONSTANT);
 
-        // Draw the bin based on HSL color model.
-        var hue = (1 - this.mags[i]) * 240;
-        this.ctx.fillStyle = 'hsl(' + hue + ', 100%, ' + this.mags[i] * 50 + '%)';
-        this.ctx.fillRect(hop * unitX, this.height - i * unitY, unitX * 2, unitY);
+        // Smoothing over time.
+        this.mags[bin] = this.mags[bin] * SMOOTHING_CONSTANT + mag * (1.0 - SMOOTHING_CONSTANT);
+        
+        // Plotting the data into the raw pixels: linear scale.
+        this._plotPixels(canvasData, this.mags[bin], hop, bin);
       }
     }
 
-    // Clear residues.
-    this.ctx.strokeStyle = STYLE.colorBorder;
-    this.ctx.strokeRect(0, 0, this.width, this.height);
+    // Update OS canvas.
+    this.ctxOS.putImageData(canvasData, 0, 0);
+
+    this.isSpectrogramRendered = true;
+
+    this.draw();
+  };
+
+  Spectra.prototype._plotPixels = function (canvasData, value, hop, bin) {
+    var grayscale = ~~(value * 255);
+    var index = (hop + bin * this.numHops) * 4;
+    canvasData.data[index + 0] = grayscale;
+    canvasData.data[index + 1] = grayscale;
+    canvasData.data[index + 2] = grayscale;
+    canvasData.data[index + 3] = 255;
   };
 
   Spectra.prototype.handleInvalidAudioBuffer = function () {
@@ -145,7 +158,7 @@
     // var regionWidth = regionEndPixel - regionStartPixel;
     // if (regionWidth > 40) {
     //   this.ctx.fillStyle = STYLE.colorHandle;
-    //   this.ctx.fillText((this.regionEnd - this.regionStart).toFixed(3), 
+    //   this.ctx.fillText((this.regionEnd - this.regionStart).toFixed(3),
     //     regionStartPixel + regionWidth * 0.5, this.yCenter + 15);
     // }
   };
@@ -170,8 +183,11 @@
 
     // Initialize start, end and sampleRate.
     this.regionStart = 0.0;
-    this.regionEnd = audioBuffer.duration;
+    this.regionEnd = this.totalDuration = audioBuffer.duration;
     this.sampleRate = audioBuffer.sampleRate;
+    this.isSpectrogramRendered = false;
+
+    this.renderSpectrogram();
   };
 
   Spectra.prototype.draw = function () {
@@ -180,21 +196,54 @@
       return;
     }
 
+    // Flipped the y-axis for the on-screen drawing.
+    // Note: (Hscale, Hskew, Vscale, Vskew, Htrans, Vtrans)
+    this.ctx.setTransform(1, 0, 0, -1, 0, this.height);
+
+    // Clear screen.
     this.ctx.fillStyle = STYLE.colorBackground;
     this.ctx.fillRect(0, 0, this.width, this.height);
 
-    this.drawSpectrogram();
-    this.drawOverlay();
-    this.drawInfo();
+    // Copy it back to the on-screen canvas.
+    if (this.isSpectrogramRendered) {
+      var startHop = Math.floor(this.numHops * this.regionStart / this.totalDuration);
+      var endHop = Math.floor(this.numHops * this.regionEnd / this.totalDuration);
+
+      if (this.useLogarithmicScale) {
+        var maxBinIndex = this.halfBin - 1;
+        var logmax = Math.log(maxBinIndex, 2); 
+        var prevY = 0;
+
+        // Scan top-down (0 -> halfBin - 1) and transform y-coord to the log scale.
+        for (var y = 1; y <= maxBinIndex; y++) {
+          var logy = Math.floor(this.height * Math.log(y, 2) / logmax);
+          this.ctx.drawImage(this.ctxOS.canvas,
+            startHop, y - 1, endHop - startHop, 1,
+            0, prevY, this.width, logy - prevY);
+          prevY += logy - prevY;
+        }
+      } else {
+        this.ctx.drawImage(this.ctxOS.canvas, 
+          startHop, 0, endHop - startHop, this.halfBin,
+          0, 0, this.width, this.height);
+      }
+    }
+
+    // Clear residues.
+    this.ctx.strokeStyle = STYLE.colorBorder;
+    this.ctx.strokeRect(0, 0, this.width, this.height);
+
+    // this.drawOverlay();
+    // this.drawInfo();
   };
 
   Spectra.prototype.setRegion = function (start, end) {
     if (!this.data)
       return;
 
+    // TODO: check the reversed case. check both boundaries.
     this.regionStart = Math.max(0, start);
     this.regionEnd = Math.min(this.data.length / this.sampleRate, end);
-    this.draw();
   };
 
   Spectra.prototype.getRegion = function () {
@@ -204,7 +253,18 @@
     };
   };
 
-  // Expose the factory.
+  Spectra.prototype.setScale = function (mode) {
+    switch (mode) {
+      case 'linear':
+        this.useLogarithmicScale = false;
+        break;
+      case 'log':
+        this.useLogarithmicScale = true;
+        break;
+    }
+  }
+
+  // Factory.
   SpiralSpectra.create = function (ctx, x, y, width, height) {
     return new Spectra(ctx, x, y, width, height);
   };
